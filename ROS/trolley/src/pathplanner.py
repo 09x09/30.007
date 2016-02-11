@@ -4,25 +4,12 @@ import math
 import numpy
 import matplotlib.pyplot as plt
 
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from std_msgs.msg import Float64
 from trolley.msg import Wheels
 
-
-class Aruco(object):
-	def __init__(self):
-		super(Aruco, self).__init__()
-		self.trolley = Coordinate()
-
-	def get_trolley_coords(self):
-		rospy.loginfo("Getting trolley coordinates")
-		f = open("/home/odroid/Desktop/Aruco_Tracker/rangeandpose.txt", "r")
-		lines = f.readlines()
-		f.close()
-
-		self.trolley.x = 0
 
 
 class Coordinate(object):
@@ -34,97 +21,59 @@ class Coordinate(object):
 class Path_Planner(object):
 	def __init__(self):
 		super(Path_Planner, self).__init__()
-		self.bpath = []
+		self.base_length = 1 #wheel to wheel length
 		self.timeStep = 0.2
-		self.origin = Coordinate()
-		self.controlPt2 = Coordinate()
-		self.trolley = Coordinate(1,3)
-		self.controlPt1 = Coordinate(0, self.trolley.y,0)
-		self.bezier_curve()
-		self.base_length = 0.7
-		self.a_max = 0.1
-		self.landing_coeff = 0.5
-		self.command = Wheels()
-		self.total_time = 30
+		self.pt1 = Coordinate()
+		self.trolley = Coordinate()
+		self.base_speed = 0.12
+		self.get_dock_pose()
+		rospy.loginfo("Marker pose set")
 
-	def bezier_curve(self):
-		self.controlPt2.y = 0
-		if self.trolley.theta == 0:
-			self.controlPt2.x = self.trolley.x
+
+
+	def compute_radius(self):
+		A = Coordinate()
+		B = self.pt1
+		C = self.trolley
+		
+		lenAB = math.sqrt((A.x - B.x)**2 + (A.y - B.y)**2)
+		lenAC = math.sqrt((A.x - C.x)**2 + (A.y - C.y)**2) 
+		lenBC = math.sqrt((B.x - C.x)**2 + (B.y - C.y)**2)
+		area = abs((A.x-C.x)*(B.y-A.y)-(A.x-B.x)*(C.y-A.y))/2
+
+		radius = lenAB * lenAC * lenBC / (4 * area)
+		rospy.loginfo("Radius: %f" % (radius))
+		return float(radius)
+
+	def compute_wheel_vel(self, r):
+		"""
+		If the control point is on the right of the robot, robot should turn right
+		Wheel velocities are related by the equation vr(r-l/2) = vl(r+l/2)
+		The slower wheel will be set to the minimum wheel velocity
+		"""	
+		d = float(self.base_length)/2
+		if self.pt1.x > 0.05:
+			rospy.loginfo("x > 0")
+			vr = self.base_speed
+			vl = vr*float(r-d)/(r+d) + 0.1
+
+		elif self.pt1.x < -0.05:
+			rospy.loginfo("x < 0")
+			vl = self.base_speed
+			vr = vl*(r+d)/(r-d) + 0.1
+
 		else:
-			self.controlPt2.x = self.trolley.x-self.trolley.y/math.tan(math.pi/2 - self.trolley.theta)
-			if self.controlPt2.x <= 0:
-				self.controlPt2.x = 0
-				self.controlPt2.y = -self.trolley.x*math.tan(math.pi/2 - self.trolley.theta)+self.trolley.y
-				self.controlPt1.y *= 0.4
-
-		current_angle = 0
-		rospy.loginfo([self.controlPt2.x, self.controlPt2.y])
-		t = 0
-		append = self.bpath.append
-		while t < 1:
-			x_value = (1-t)**3*self.origin.x+3*(1-t)**2*t*self.controlPt1.x+ 3*(1-t)*t**2*self.controlPt2.x + t**3 * self.trolley.x
-			y_value = (1-t)**3*self.origin.y+3*(1-t)**2*t*self.controlPt1.y+ 3*(1-t)*t**2*self.controlPt2.y + t**3 * self.trolley.y
-
-			x_change = 3*(1-t)**2*(self.controlPt1.x-self.origin.x)+ 6*(1-t)*t*(self.controlPt2.x-self.controlPt1.x) + 3*t**2*(self.trolley.x-self.controlPt2.x)
-			y_change = 3*(1-t)**2*(self.controlPt1.y-self.origin.y)+ 6*(1-t)*t*(self.controlPt2.y-self.controlPt1.y) + 3*t**2*(self.trolley.y-self.controlPt2.y)
-			angle_value = math.atan2(y_change, x_change)
-
-			angle_change = angle_value - current_angle
-			vx = x_change/self.timeStep
-			vy = y_change/self.timeStep
-			w = angle_change/self.timeStep			
-
-			append([x_value, y_value, angle_value, vx, vy, w])
-			t += self.timeStep
-			current_angle = angle_value
-
-		#xv = [i[0] for i in self.bpath]
-		#yv = [j[1] for j in self.bpath]
+			vl = self.base_speed
+			vr = self.base_speed
 		
-		#plt.scatter(self.controlPt1.x, self.controlPt1.y)
-		#plt.scatter(self.controlPt2.x, self.controlPt2.y)
-		#plt.scatter(xv,yv)
-		#plt.show()
+		rospy.loginfo("vl: %f vr: %f" % (vl,vr))
+		return(vl, vr)
 
-		rospy.loginfo("Curve generated")
-		#rospy.loginfo(self.bpath)
+	def compute_control_point(self):
+		self.pt1.x = self.trolley.x / 2 
+		self.pt1.y = self.trolley.y / 2 - 0.3
+		rospy.loginfo("Control point x: %f, y: %f" % (self.pt1.x, self.pt1.y))
 
-	def compute_error(self, current_time, current_pose):
-		target_pose = self.bpath[int(current_time/self.total_time*len(self.bpath))]
-		rospy.loginfo(target_pose)
-		rospy.loginfo(int(current_time/self.total_time*len(self.bpath)))
-		err_x = (target_pose[0] - current_pose.x) * math.cos(target_pose[2]) + (target_pose[1] - current_pose.y)*math.sin(target_pose[2]);
-		err_y = (target_pose[0] - current_pose.x) * math.sin(target_pose[2]) + (target_pose[1] - current_pose.y)*math.cos(target_pose[2]);
-		err_theta = target_pose[2] - current_pose.theta
-		
-		err = [err_x,err_y,err_theta]
-		err = [i/2 for i in err]
-		return err
-
-	def convert_to_wheel_vel(self, vc, wc):
-		vr = vc + wc*self.base_length/2
-		vl =vc - wc*self.base_length/2
-		return [vl,vr]
-
-	def compute_new_vel(self, err, current_pose, current_time):
-		target_pose = self.bpath[int(current_time/self.total_time*len(self.bpath))]
-		theta_p = target_pose[2] + math.atan(2*self.landing_coeff*(err[1]/self.landing_coeff)**(2/3)*numpy.sign(err[1]))
-		wp = target_pose[5] + 2*(err[1]/self.landing_coeff)**(-1/3) / (1 + (math.tan(theta_p - target_pose[2])**2) * (-target_pose[5] * err[0] + 0.5*(self.command.left + self.command.right)* math.sin(err[2])))*numpy.sign(err[1])
-
-		ws = wp + math.sqrt(2*self.a_max*abs(theta_p - current_pose.y)) * numpy.sign(theta_p - current_pose.y)
-		ac = ws/self.timeStep
-		if abs(ac > self.a_max):
-			ac = self.a_max
-		new_w = (self.command.right-self.command.left)/2 + ac*self.timeStep
-
-		vs = math.sqrt(target_pose[3]**2 + target_pose[4]**2) + math.sqrt(2*self.a_max*abs(err[1]))*numpy.sign(err[1])
-		ac1 = vs/self.timeStep
-		if ac1 > self.a_max:
-			ac1 = self.a_max
-		new_v = (self.command.left+self.command.right)/2 + ac1*self.timeStep
-		return [new_v, new_w] 
-		
 		
 class Gripper(object):
 	def __init__(self):
@@ -172,7 +121,7 @@ class Robot(Path_Planner, Gripper):
 		self.elapsed_time = 0
 		self.start_pose = Coordinate()
 
-	def vel_publish(self, left_vel = 0.15, right_vel = 0.15): #publish movements
+	def vel_publish(self, left_vel = 0.12, right_vel = 0.12, t = 1): #publish movements
 		pub = rospy.Publisher("/cmd_vel", Wheels, queue_size = 30)
 		msg = Wheels()
 		msg.left = left_vel
@@ -182,10 +131,9 @@ class Robot(Path_Planner, Gripper):
 		while True:
 	   		now = time.time()
 			pub.publish(msg)
-			rospy.loginfo("vel_published")
 			rospy.sleep(0.5)
 			now = time.time()
-			if now - start_time > 1:
+			if now - start_time > t:
 				return 0
 
 	def ekf_sub(self):
@@ -211,6 +159,73 @@ class Robot(Path_Planner, Gripper):
 		#rospy.loginfo("current x: %f, current y: %f, current theta: %f" % (self.current_pose.x, self.current_pose.y, self.current_pose.theta))
 
 
+	def go(self):
+		"""
+		The robot travels to the trolley by generating an arc between it and the dock
+		1. get marker pose
+		2. generate control point to set the arc
+		3. compute radius of arc
+		4. compute wheel velocities given arc radius
+		5. publish velocities
+		6. repeat
+		"""
+		self.compute_control_point()
+		r = self.compute_radius()
+		vl, vr = self.compute_wheel_vel(r)
+		self.vel_publish(vl, vr, 2)
+
+	def align(self):
+		"""
+		Align the robot to the marker by driving the yaw of the marker to zero
+		bang bang control
+		"""
+		rospy.loginfo("alignment")
+		while abs(self.trolley.theta) > 0.05 and self.trolley.y > 0.15:	
+			self.get_dock_pose()
+			x_err = 0.2 * self.trolley.x
+			rospy.loginfo(self.trolley.theta)			
+			if self.trolley.theta > 0.3:
+				vl = 0.15 
+				vr = 0.24
+
+			elif self.trolley.theta > 0.15:
+				vl = 0.15
+				vr = 0.19
+
+			elif self.trolley.theta > 0.05:
+				vl = 0.15
+				vr = 0.18
+
+			elif self.trolley.theta < -0.3:
+				vr = 0.15
+				vl = 0.24
+
+			elif self.trolley.theta < -0.15:
+				vr = 0.15
+				vl = 0.19
+
+			elif self.trolley.theta < -0.05:
+				vr = 0.15
+				vl = 0.15
+
+			else:
+				rospy.loginfo("angle aligned")
+				if x_err > 0.05:
+					vl = 0.16
+					vr = 0.12
+
+				elif x_err < -0.05:
+					vl = 0.12
+					vr = 0.16
+
+				else:
+					rospy.loginfo("aligned")
+					vl = 0.15
+					vr = 0.15
+
+			self.vel_publish(vl,vr,2)
+
+
 	def stop(self):
 		self.vel_publish(0.13)
 		self.vel_publish(0.12)
@@ -229,5 +244,25 @@ class Robot(Path_Planner, Gripper):
 			return False
 
 
+	def get_dock_pose(self):
+		old = self.trolley.y
+		rospy.Subscriber("aruco_single/pose", PoseStamped, self.aruco_callback)
+		
+		while self.trolley.y == old:
+			rospy.loginfo("Unable to find marker, stopping")
+			self.vel_publish(0,0)
+						
+		
+	def aruco_callback(self, msg):
+		dist = msg.pose.position
+		quaternion = msg.pose.orientation
+		r,p,y = euler_from_quaternion((quaternion.x, quaternion.y, quaternion.z, quaternion.w))
 
+		self.trolley.x = dist.x
+		self.trolley.y = dist.z - 0.65
+		self.trolley.theta = p
+
+
+		#rospy.loginfo("roll: %f, pitch: %f yaw: %f" % (r,p,y))
+		#rospy.loginfo("trolley x: %f, trolley y: %f, trolley angle: %f" % (dist.x, dist.z, y))
 

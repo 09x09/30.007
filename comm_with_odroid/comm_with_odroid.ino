@@ -4,7 +4,7 @@
 #include "src/Imu/Imu.h"
 
 #include <Wire.h>
-//#include <VL53L0X.h>
+#include <VL53L0X.h>
 
 #include "src/Motor/Motor.h"
 #include <Servo.h>
@@ -16,7 +16,7 @@
 #include <std_msgs/Int32.h>
 #include <std_msgs/Int32MultiArray.h>
 #include <std_msgs/Float64.h>
-#include <std_msgs/String.h>
+
 #include <trolley/Wheels.h>
 
 //Motor stuff
@@ -26,8 +26,8 @@ Motor MotLeft(10, 11, 12, 13);
 ////Servo stuff
 Servo servoLeft;
 Servo servoRight;
-int pinLeft = 3;
-int pinRight = 2;
+int pinLeft = 28;
+int pinRight = 5;
 const int turnAngle = 90;
 
 ros::NodeHandle trobot;
@@ -92,7 +92,7 @@ ros::NodeHandle trobot;
  std_msgs::Float32MultiArray enc;
  std_msgs::Float32MultiArray imu_msg;
  std_msgs::Int32MultiArray range;
- std_msgs::String rfid_msg;
+ std_msgs::Int32 rfid_msg;
 ros::Publisher encoder("encoded", &enc);
 ros::Publisher imuu("readings", &imu_msg);
 ros::Publisher rangefinder("rangefinder", &range);
@@ -106,8 +106,8 @@ struct EncoderPin
   EncoderPin(int dt, int clk) : dt(dt), clk(clk){};
 };
 
-const EncoderPin right(32, 33);
-const EncoderPin left(35, 34);
+const EncoderPin right(2, 3);
+const EncoderPin left(31, 30);
 const int samples = 10;
 const int threshold = 3;
 const float step_angle = PI / 12;
@@ -129,17 +129,17 @@ unsigned long thrott = 0;
 long last = 0;
 
 //RANGEFINDER STUFF
-//VL53L0X left_side;
-//VL53L0X right_side;
-int Rleft = 45;
+VL53L0X left_side;
+VL53L0X right_side;
+ int Rleft = 27;
 int Rright = 46;
-int distance[2];
+long int distance[2];
 //Time b4 entering main loop
 long gtime = 0;
 
 
 //RFID READER STUFF
-MFRC522 rfid(53, 5); // Instance of the class
+MFRC522 rfid(53, 29); // Instance of the class
 
 MFRC522::MIFARE_Key key;
 
@@ -163,22 +163,22 @@ void setup()
    emu.init();
 
   //INITIALISE RANGEFINDERS
-//  pinMode(Rleft, OUTPUT);
-//  pinMode(Rright, OUTPUT);
-//  digitalWrite(Rleft, LOW);
-//  digitalWrite(Rright, LOW);
-//
-//  pinMode(Rleft, INPUT);
-//  left_side.init(true);
-//  left_side.setAddress((uint8_t)22);
-//  pinMode(Rright, INPUT);
-//  right_side.init(true);
-//  right_side.setAddress((uint8_t)25);
-//
-//  left_side.setTimeout(500);
-//  right_side.setTimeout(500);
-//  left_side.startContinuous();
-//  right_side.startContinuous();
+  pinMode(Rleft, OUTPUT);
+  pinMode(Rright, OUTPUT);
+  digitalWrite(Rleft, LOW);
+  digitalWrite(Rright, LOW);
+
+  pinMode(Rleft, INPUT);
+  left_side.init(true);
+  left_side.setAddress((uint8_t)22);
+  pinMode(Rright, INPUT);
+  right_side.init(true);
+  right_side.setAddress((uint8_t)25);
+
+  left_side.setTimeout(500);
+  right_side.setTimeout(500);
+  left_side.startContinuous();
+  right_side.startContinuous();
 
   ////INITIALISE ENCODER
   pinMode(left.dt, INPUT);
@@ -210,6 +210,7 @@ void setup()
 
 void loop()
 {
+ 
 
   if (wheel_right.sample_encoder())
   {
@@ -239,7 +240,7 @@ void loop()
   if (wheel_left.stopped() && print_once_stop_flag)
   {
     linear_vel[0] = 0;
-    // Serial.println("Wheel left : 0");
+//     Serial.println("Wheel left : 0");
 //         Serial.println("Stopped");
           print_once_stop_flag = false;
   }
@@ -260,33 +261,33 @@ void loop()
      emu.MagCalc(imu_counter);
 
   //   // Serial.println("imu reading :");
-  //   // Serial.println(emu.pitch[imu_counter]);
+//      Serial.println(emu.pitch[imu_counter]);
   //   //  Serial.println(emu.roll[imu_counter]);
   //   // Serial.println(emu.yaw[imu_counter]);
      imu_counter++;
 
   // //   //READ RANGEFINDER
-  //   distance[0] = right_side.readRangeContinuousMillimeters();
-  //   distance[1] = left_side.readRangeContinuousMillimeters();
-
-  // //   // Serial.println("left: ");
-  // //   // Serial.println(distance[1]);
-  // //   // if (left_side.timeoutOccurred())
-  // //   // {
-  // //   //   Serial.print(" TIMEOUT");
-  // //   // }
-  // //   // Serial.println("right: ");
-  // //   // Serial.println(distance[0]);
-  // //   // if (right_side.timeoutOccurred())
-  // //   // {
-  // //   //   Serial.print("TIMEOUT");
-  // //   // }
-
-  // //   //// Publish rangefinder readings
-  // //   // range.data_length = 2;
-  // //   // range.data = distance;
-  // //   // rangefinder.publish( &range);
-  // //   // trobot.spinOnce();
+//     distance[0] = right_side.readRangeContinuousMillimeters();
+//     distance[1] = left_side.readRangeContinuousMillimeters();
+//
+//       Serial.println("left: ");
+//       Serial.println(distance[1]);
+//       if (left_side.timeoutOccurred())
+//       {
+//         Serial.print(" TIMEOUT");
+//       }
+//       Serial.println("right: ");
+//       Serial.println(distance[0]);
+//       if (right_side.timeoutOccurred())
+//       {
+//         Serial.print("TIMEOUT");
+//       }
+//
+//      // Publish rangefinder readings
+//       range.data_length = 2;
+//       range.data = distance;
+//       rangefinder.publish( &range);
+//       trobot.spinOnce();
    }
 
    if (imu_counter >= 10)
@@ -303,61 +304,58 @@ void loop()
       imuu.publish(&imu_msg);
       trobot.spinOnce();
    }
-//   ////READ RFID
-//   // Look for new cards
-//   if (!rfid.PICC_IsNewCardPresent())
-//     return;
+   ////READ RFID
+   // Look for new cards
+   if (!rfid.PICC_IsNewCardPresent())
+     return;
 
 //   // Verify if the NUID has been readed
-//   if (!rfid.PICC_ReadCardSerial())
-//     return;
+   if (!rfid.PICC_ReadCardSerial())
+     return;
 
-//   if (rfid.uid.uidByte[0] != nuidPICC[0] ||
-//       rfid.uid.uidByte[1] != nuidPICC[1] ||
-//       rfid.uid.uidByte[2] != nuidPICC[2] ||
-//       rfid.uid.uidByte[3] != nuidPICC[3])
-//   {
+   if (rfid.uid.uidByte[0] != nuidPICC[0] ||
+       rfid.uid.uidByte[1] != nuidPICC[1] ||
+       rfid.uid.uidByte[2] != nuidPICC[2] ||
+       rfid.uid.uidByte[3] != nuidPICC[3])
+   {
 
 //     // Store NUID into nuidPICC array
-//     for (byte i = 0; i < 4; i++)
-//     {
-//       nuidPICC[i] = rfid.uid.uidByte[i];
-//     }
-//     String id = printDec(rfid.uid.uidByte, rfid.uid.size);
+     for (byte i = 0; i < 4; i++)
+     {
+       nuidPICC[i] = rfid.uid.uidByte[i];
+
+     }
+     int nu = printDec(rfid.uid.uidByte, rfid.uid.size);
 
 //     //// Publish rfid readings
-//     // rfid_msg.data = id;
-//     // rfidread.publish( &rfid_msg );
-//     // trobot.spinOnce();
-//     Serial.println(id);
-//   }
-//   else
-//     Serial.println(F("Card read previously."));
+  rfid_msg.data = nu;
+      rfidread.publish( &rfid_msg );
+      trobot.spinOnce();
+     Serial.println(nu);
+   }
+   else
+     Serial.println(F("Card read previously."));
 
 //   // Halt PICC
-//   rfid.PICC_HaltA();
+   rfid.PICC_HaltA();
 
 //   // Stop encryption on PCD
-//   rfid.PCD_StopCrypto1();
+   rfid.PCD_StopCrypto1();
 
   trobot.spinOnce();
-}
 
-//}
+}
 //Endloop
 
-//Functions
-
-
 //Decode rfid
-String printDec(byte *buffer, byte bufferSize)
+int printDec(byte *buffer, byte bufferSize)
 {
-  String number;
+  int number;
   for (byte i = 0; i < bufferSize; i++)
   {
-    number += buffer[i] < 0x10 ? " 0" : " ";
     number += buffer[i];
   }
-  // Serial.println(number);
-  return number;
+
+      return number;
+  
 }

@@ -2,6 +2,7 @@
 import rospy
 import pathplanner
 
+from geometry_msgs.msg import PoseStamped
 
 def gripper_test(bot):
 	rospy.loginfo("Gripper Test")
@@ -24,16 +25,28 @@ def localisation_test(bot, vl, vr):
 	bot.vel_publish(0,0)
 
 		
-	
+def cb(msg):
+	rospy.loginfo("received")
+
 if __name__ == "__main__":
 	rospy.init_node("botherder")
 	bot = pathplanner.Robot()
-	bot.ekf_sub()
 
 	try:
-		localisation_test(bot, 0.12, 0.12)
-		rospy.loginfo("x: %f, y: %f, w: %f" % (bot.current_pose.x, bot.current_pose.y, bot.current_pose.theta))
-
+		rospy.loginfo("Starting in 5")
+		rospy.sleep(5)
+		while bot.trolley.y > 1:
+			rospy.loginfo("distance: %f" % (bot.trolley.y))
+			bot.go()
+			
+		bot.stop()			
+		rospy.loginfo("begin alignment")
+		bot.align()
+		bot.stop()
+		bot.gripper_up()
+		rospy.sleep(5)
+		#bot.publish_vel(-0.12,-0.12,5)
+		bot.gripper_down()
 
 	except rospy.ROSInterruptException:
 		pass
