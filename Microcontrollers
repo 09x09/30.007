@@ -1,0 +1,39 @@
+Microcontroller Selection and Evaluation 
+V1 by Xavier, 12th Feb 2019
+
+
+
+
+  ODROID C2 bought 12th Feb 2019, receive date TBC
+  Linux to be installed on C2, communicate with microcontrollers (Arduino) via serial
+  
+  Parts:
+    - Motors/Motor Drivers
+        Power input by external sources USB/Rechargeable Batteries
+        System can be controlled via PWM by Arduino Nano into L298N Motor Drivers
+        Type of Motor TBC for 
+    - Navigation (LIDAR/RADAR)
+        Inputs fed into Arduino Mega to be able to handle data load and compute responses
+    - Sensor Inputs
+        Inputs into Arduino Mega to be able to handle data load
+    
+  Microcontroller Specs:
+  
+    - Arduino Mega
+        Input: 7-12V
+        I/O Pins: 54
+        I/O DC Current: 20mA
+        3.3V DC Current: 50mA
+        Flash Memory: 256KB, 8KB used by bootloader
+        SRAM: 8KB
+        Clock Speed: 16MHz
+    
+    - Arduino Nano
+        Input: 7-12V
+        I/O Pins: 22 (6pwm)
+        I/O DC Current: 40mA
+        3.3V DC Current: N/A
+        Flash Memory: 32KB, 8KB used by bootloader
+        SRAM: 2KB
+        Clock Speed: 16MHz
+        
