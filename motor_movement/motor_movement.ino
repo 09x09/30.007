@@ -1,5 +1,5 @@
 #include <ros.h>
-
+#include <trolley/Wheels.h>
 #include <Arduino.h>
 
 
@@ -67,7 +67,7 @@ void messageCb( const trolley::Wheels & msg ){
 
 
 
-ros::Subscriber<std_msgs::Wheels> sub("cmd_vel", &messageCb );
+ros::Subscriber<trolley::Wheels> sub("cmd_vel", &messageCb );
 
 
 
@@ -123,7 +123,7 @@ void turn_left( int left, int right ){
 
   analogWrite( E2, right);
 
-  digitalWrite(M2, HIGH);;
+  digitalWrite(M2, HIGH);
 
 }
 
@@ -136,10 +136,6 @@ void stop( void ){
   digitalWrite( E2, LOW );
 
   }
-
-}
-
-
 
 
 
