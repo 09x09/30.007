@@ -4,6 +4,7 @@ import rospy
 import time
 import math
 import pathplanner
+import numpy
 
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from trolley.msg import Wheels
@@ -31,8 +32,10 @@ if __name__ == "__main__":
 		bot.vel_publish()
 		while bot.is_docked != True:
 			bot.ekf_sub()
-			bot.compute_error(self.elapsed_time, self.current_pose)
-			bot.vel_publish(bot.gen_vel())
+			err = bot.compute_error(bot.elapsed_time, bot.current_pose)
+			new_command = bot.compute_new_vel(err, bot.current_pose)
+			v_new = bot.convert_to_wheel_vel(new_command[0], new_command[1]) 
+			bot.vel_publish(v_new[0], v_new[1])
 
 	except rospy.ROSInterruptException:
         	pass	
