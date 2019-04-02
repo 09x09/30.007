@@ -65,9 +65,9 @@ class Path_Planner(object):
 		target_pose = self.bpath[int(current_time/self.total_time*len(self.bpath))]
 		rospy.loginfo(target_pose)
 		rospy.loginfo(int(current_time/self.total_time*len(self.bpath)))
-		err_x = (target_pose[0] - current_pose[0]) * math.cos(target_pose[2]) + (target_pose[1] - current_pose[1])*math.sin(target_pose[2]);
-		err_y = (target_pose[0] - current_pose[0]) * math.sin(target_pose[2]) + (target_pose[1] - current_pose[1])*math.cos(target_pose[2]);
-		err_theta = target_pose[2] - current_pose[2]
+		err_x = (target_pose[0] - current_pose.x) * math.cos(target_pose[2]) + (target_pose[1] - current_pose.y)*math.sin(target_pose[2]);
+		err_y = (target_pose[0] - current_pose.x) * math.sin(target_pose[2]) + (target_pose[1] - current_pose.y)*math.cos(target_pose[2]);
+		err_theta = target_pose[2] - current_pose.theta
 		
 		err = [err_x,err_y,err_theta]
 		return err
@@ -82,7 +82,7 @@ class Path_Planner(object):
 		theta_p = target_pose[2] + math.atan(2*self.landing_coeff*(err[1]/self.landing_coeff)**(2/3)*numpy.sign(err[1]))
 		wp = target_pose[5] + 2*(err[1]/self.landing_coeff)**(-1/3) / (1 + (math.tan(theta_p - target_pose[2])**2) * (-target_pose[5] * err[0] + 0.5*(self.command.left + self.command.right)* math.sin(err[2])))*numpy.sign(err[1])
 
-		ws = wp + math.sqrt(2*self.a_max*abs(theta_p - current_pose[1])) * numpy.sign(theta_p - current_pose[1])
+		ws = wp + math.sqrt(2*self.a_max*abs(theta_p - current_pose.y)) * numpy.sign(theta_p - current_pose.y)
 		ac = ws/self.timeStep
 		if abs(ac > self.a_max):
 			ac = self.a_max
@@ -101,7 +101,7 @@ class Robot(Path_Planner):
 	def __init__(self):
 		super(Robot,self).__init__()
 		self.rate=rospy.Rate(10)
-		self.current_pose = [0,0,0]
+		self.current_pose = Coordinate()
 		self.start_time = time.time()
 		rospy.loginfo("Time set")
 		self.elapsed_time = 0
@@ -132,16 +132,16 @@ class Robot(Path_Planner):
 	def get_current_pose(self, msg):
 		rospy.loginfo("EKF msg received")
 		rospy.loginfo(self.elapsed_time)
-		self.current_pose[0] = msg.pose.pose.position.x
-		self.current_pose[1] = msg.pose.pose.position.y
+		self.current_pose.x = msg.pose.pose.position.x
+		self.current_pose.y = msg.pose.pose.position.y
 		
 		(roll, ptich,yaw) = euler_from_quaternion(msg.pose.pose.orientation)
-		self.current_pose[2] = yaw
+		self.current_pose.theta = yaw
 
 
 	
 	def is_docked(self):
-		if abs(self.current_pose[0] - self.trolley.x) < 0.3 and abs(self.current_pose[1] - self.trolley.y) < 0.3 and abs(self.current_pose[2] - self.trolley.theta) < 0.1:
+		if abs(self.current_pose.x - self.trolley.x) < 0.3 and abs(self.current_pose.y - self.trolley.y) < 0.3 and abs(self.current_pose.theta - self.trolley.theta) < 0.1:
 			return True
 
 		else:
