@@ -31,9 +31,10 @@ if __name__ == "__main__":
 	try:
 		bot.vel_publish()
 		while bot.is_docked != True:
+			rospy.loginfo("Loop")
 			bot.ekf_sub()
 			err = bot.compute_error(bot.elapsed_time, bot.current_pose)
-			new_command = bot.compute_new_vel(err, bot.current_pose)
+			new_command = bot.compute_new_vel(err, bot.current_pose, bot.elapsed_time)
 			v_new = bot.convert_to_wheel_vel(new_command[0], new_command[1]) 
 			bot.vel_publish(v_new[0], v_new[1])
 
