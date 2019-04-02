@@ -6,36 +6,46 @@ import numpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from trolley.msg import Wheels
 
+class Coordinate(object):
+	def __init__(self, a = 0, b = 0, t = 0):
+		self.x = a
+		self.y = b
+		self.theta = t
+
 class Path_Planner(object):
 	def __init__(self):
 		super(Path_Planner, self).__init__()
 		self.bpath = []
 		self.timeStep = 0.05
-		self.origin = [0,0,0]
-		self.controlPt1 = [0,5]
-		self.controlPt2 = []
-		self.trolley = [1,1,0]
+		self.origin = Coordinate()
+		self.controlPt2 = Coordinate()
+		self.trolley = Coordinate(1,1,0)
+		self.controlPt1 = Coordinate(0, trolley.y,0)
 		self.bezier_curve(self.trolley[0], self.trolley[1], self.trolley[2])
 		self.base_length = 0.7
 		self.a_max = 0.2
 		self.landing_coeff = 0.5
 		self.command = Wheels()
 
-	def bezier_curve(self,x,y,angle):
-		if angle < 0:
-			self.controlPt2 = [x+2, 2*math.atan(angle)+y]
+	def bezier_curve(self):
+		if angle >= -math.pi/4:
+			self.controlPt2.x = 0 
+			self.controlPt2.y = self.controlPt2.x*math.atan(angle)+self.trolley.y
 		else:
-			self.controlPt2 = [x-2, 2*math.atan(angle)+y]
+			self.controlPt2.y = 0
+			self.controlPt2.x = self.trolley.x-self.trolley.y/math.atan(angle)
+			
 
 		current_angle = 0
 
 		t = 0
+		append = self.bpath.append
 		while t < 1:
-			x_value = (1-t)**3*self.origin[0]+3*(1-t)**2*t*self.controlPt1[0]+ 3*(1-t)*t**2*self.controlPt2[0] + t**3 * self.trolley[0]
-			y_value = (1-t)**3*self.origin[1]+3*(1-t)**2*t*self.controlPt1[1]+ 3*(1-t)*t**2*self.controlPt2[1] + t**3 * self.trolley[1]
+			x_value = (1-t)**3*self.origin.x+3*(1-t)**2*t*self.controlPt1.x+ 3*(1-t)*t**2*self.controlPt2.x + t**3 * self.trolley.x
+			y_value = (1-t)**3*self.origin.y+3*(1-t)**2*t*self.controlPt1.y+ 3*(1-t)*t**2*self.controlPt2.y + t**3 * self.trolley.y
 
-			x_change = 3*(1-t)**2*(self.controlPt1[0]-self.origin[0])+ 6*(1-t)*t*(self.controlPt2[0]-self.controlPt1[0]) + 3*t**2*(self.trolley[0]-self.controlPt2[0])
-			y_change = 3*(1-t)**2*(self.controlPt1[1]-self.origin[1])+ 6*(1-t)*t*(self.controlPt2[1]-self.controlPt1[1]) + 3*t**2*(self.trolley[1]-self.controlPt2[1])
+			x_change = 3*(1-t)**2*(self.controlPt1.x-self.origin.x)+ 6*(1-t)*t*(self.controlPt2.x-self.controlPt1.x) + 3*t**2*(self.trolley.x-self.controlPt2.x)
+			y_change = 3*(1-t)**2*(self.controlPt1.y-self.origin.y)+ 6*(1-t)*t*(self.controlPt2.y-self.controlPt1.y) + 3*t**2*(self.trolley.y-self.controlPt2.y)
 			angle_value = math.atan2(y_change, x_change)
 
 			angle_change = angle_value - current_angle
@@ -43,7 +53,7 @@ class Path_Planner(object):
 			vy = y_change/self.timeStep
 			w = angle_change/self.timeStep			
 
-			self.bpath.append([x_value, y_value, angle_value, vx, vy, w])
+			append([x_value, y_value, angle_value, vx, vy, w])
 			t += self.timeStep
 			current_angle = angle_value
 
@@ -69,7 +79,7 @@ class Path_Planner(object):
 		theta_p = target_pose[2] + math.atan(2*self.landing_coeff*(err[1]/self.landing_coeff)**(2/3)*numpy.sign(err[1]))
 		wp = target_pose[5] + 2*(err[1]/self.landing_coeff)**(-1/3) / (1 + (math.tan(theta_p - target_pose[2])**2) * (-target_pose[5] * err[0] + 0.5*(self.command.left + self.command.right)* math.sin(err[2]))*numpy.sign(err[1])
 
-		ws = wp + math.sqrt(2*self.a_max*math.abs(theta_p - current_pose[1]) * numpy.sign(theta_p - current_pose[1])
+		ws = wp + math.sqrt(2*self.a_max*math.abs(theta_p - current_pose[1])) * numpy.sign(theta_p - current_pose[1])
 		ac = ws/self.timeStep
 		if abs(ac > self.a_max):
 			ac = self.a_max
@@ -125,7 +135,7 @@ class Robot(Path_Planner):
 
 	
 	def is_docked(self):
-		if abs(self.current_pose[0] - self.trolley[0]) < 0.3 and abs(self.current_pose[1] - self.trolley[1]) < 0.3 and abs(self.current_pose[2] - self.trolley[2]) < 0.1:
+		if abs(self.current_pose[0] - self.trolley.x) < 0.3 and abs(self.current_pose[1] - self.trolley.y) < 0.3 and abs(self.current_pose[2] - self.trolley.theta) < 0.1:
 			return True
 
 		else:
