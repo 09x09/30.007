@@ -2,6 +2,7 @@ import rospy
 import time
 import math
 import numpy
+import matplotlib.pyplot as plt
 
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from trolley.msg import Wheels
@@ -16,10 +17,10 @@ class Path_Planner(object):
 	def __init__(self):
 		super(Path_Planner, self).__init__()
 		self.bpath = []
-		self.timeStep = 0.05
+		self.timeStep = 0.01
 		self.origin = Coordinate()
 		self.controlPt2 = Coordinate()
-		self.trolley = Coordinate(5,5,0)
+		self.trolley = Coordinate(5,5,1.5)
 		self.controlPt1 = Coordinate(0, self.trolley.y,0)
 		self.bezier_curve()
 		self.base_length = 0.7
@@ -29,16 +30,18 @@ class Path_Planner(object):
 		self.total_time = 30
 
 	def bezier_curve(self):
-		if self.trolley.theta >= -math.pi/4:
-			self.controlPt2.x = 0 
-			self.controlPt2.y = self.controlPt2.x*math.atan(self.trolley.theta)+self.trolley.y
+		self.controlPt2.y = 0
+		if self.trolley.theta == 0:
+			self.controlPt2.x = self.trolley.x
 		else:
-			self.controlPt2.y = 0
-			self.controlPt2.x = self.trolley.x-self.trolley.y/math.atan(self.trolley.theta)
-			
+			self.controlPt2.x = self.trolley.x-self.trolley.y/math.tan(math.pi/2 - self.trolley.theta)
+			if self.controlPt2.x <= 0:
+				self.controlPt2.x = 0
+				self.controlPt2.y = -self.trolley.x*math.tan(math.pi/2 - self.trolley.theta)+self.trolley.y
+				self.controlPt1.y *= 0.4
 
 		current_angle = 0
-
+		rospy.loginfo([self.controlPt2.x, self.controlPt2.y])
 		t = 0
 		append = self.bpath.append
 		while t < 1:
@@ -57,6 +60,14 @@ class Path_Planner(object):
 			append([x_value, y_value, angle_value, vx, vy, w])
 			t += self.timeStep
 			current_angle = angle_value
+
+		xv = [i[0] for i in self.bpath]
+		yv = [j[1] for j in self.bpath]
+		
+		plt.scatter(self.controlPt1.x, self.controlPt1.y)
+		plt.scatter(self.controlPt2.x, self.controlPt2.y)
+		plt.scatter(xv,yv)
+		plt.show()
 
 		rospy.loginfo("Curve generated")
 		rospy.loginfo(self.bpath)
@@ -142,6 +153,7 @@ class Robot(Path_Planner):
 	
 	def is_docked(self):
 		if abs(self.current_pose.x - self.trolley.x) < 0.3 and abs(self.current_pose.y - self.trolley.y) < 0.3 and abs(self.current_pose.theta - self.trolley.theta) < 0.1:
+			rospy.loginfo("Docked")
 			return True
 
 		else:
