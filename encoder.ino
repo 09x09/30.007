@@ -131,7 +131,7 @@ void loop() {
       float left_linvel = 0.05 * (es_hist_left[1] * angle) / diff_tm;
       left_angular = weighted_moving_average_left_angular(left_angvel);
       left_linear = weighted_moving_average_left_linear(left_linvel);
-      arr1[0] = es_hist_left[1] * angle;
+      arr1[0] = 0.05 * es_hist_left[1] * angle;
       arr1[1] = left_angular;
       arr1[2] = left_linear;
 
@@ -150,7 +150,7 @@ void loop() {
       float right_linvel = 0.05 * (es_hist_right[1] * angle) / diff_tm_right;
       right_angular = weighted_moving_average_right_angular(right_angvel);
       right_linear = weighted_moving_average_right_linear(right_linvel);
-      arr1[3] = es_hist_right[1] * angle;
+      arr1[3] = 0.05* es_hist_right[1] * angle;
       arr1[4] = right_angular;
       arr1[5] = right_linear;
     }
