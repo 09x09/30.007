@@ -146,7 +146,7 @@ class Robot(Path_Planner):
 		self.current_pose.x = msg.pose.pose.position.x
 		self.current_pose.y = msg.pose.pose.position.y
 		
-		(roll, ptich,yaw) = euler_from_quaternion(msg.pose.pose.orientation)
+		(roll, ptich,yaw) = euler_from_quaternion(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
 		self.current_pose.theta = yaw
 
 
