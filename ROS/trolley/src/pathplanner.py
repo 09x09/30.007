@@ -189,6 +189,7 @@ class Robot(Path_Planner, Gripper):
 	def is_docked(self):
 		if abs(self.current_pose.x - self.trolley.x) < 0.3 and abs(self.current_pose.y - self.trolley.y) < 0.3 and abs(self.current_pose.theta - self.trolley.theta) < 0.1:
 			rospy.loginfo("Docked")
+			self.gripper_up()
 			return True
 
 		else:
