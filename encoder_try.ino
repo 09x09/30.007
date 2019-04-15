@@ -15,14 +15,17 @@ struct EncoderPin {
 
 // DT, CLK
 const EncoderPin left(2, 3);
-
+const EncoderPin right(3,4);
 const int samples = 10;
 const int threshold = 3;
 const float step_angle = PI/12;
 const float linear_dist = 0.05;
 
 MovingAverage smooth_left(8, 2);
+MovingAverage smooth_right(8,2);
 Encoder wheel_left(left.dt, left.clk, 3, 250000, step_angle, linear_dist);
+Encoder wheel_right(right.dt, right.clk, 3, 250000, step_angle, linear_dist);
+float linear_vel [2];
 int imu_counter = 0;
 Imu emu;
 void setup() { 
@@ -39,11 +42,11 @@ long last = 0;
 bool print_once_stop_flag = true;
 unsigned long thrott = 0;
 void loop() {
-  float a;
+
   if (wheel_left.sample_encoder()) {
     Serial.print("Wheel Left: ");
-    a = smooth_left.add_sample(wheel_left.lin_vel());
-    Serial.print(a);
+    linear_vel[0] = smooth_left.add_sample(wheel_left.lin_vel());
+    Serial.print(linear_vel[0]);
     Serial.print(", ");
     Serial.print(wheel_left.raw_tick().data.state);
     Serial.println("");
@@ -51,9 +54,29 @@ void loop() {
    
   }
   if (wheel_left.stopped() && print_once_stop_flag) {
+    linear_vel[0] = 0;
     Serial.println("Stopped");
     // print_once_stop_flag = false;
   }
+  if (wheel_right.sample_encoder()) {
+    Serial.print("Wheel Right: ");
+    linear_vel[0] = smooth_right.add_sample(wheel_right.lin_vel());
+    Serial.print(linear_vel[1]);
+    Serial.print(", ");
+    Serial.print(wheel_right.raw_tick().data.state);
+    Serial.println("");
+    print_once_stop_flag = true;
+   
+  }
+  if (wheel_right.stopped() && print_once_stop_flag) {
+    linear_vel[1] = 0;
+    Serial.println("Stopped");
+    // print_once_stop_flag = false;
+  }
+  // arr.data_length = 2;
+  // arr.data = linear_vel;
+  // encoded.publish( &arr);
+  // encoder.spinOnce();
   // delay(10);
   if (millis() > thrott + 15) {
   emu.GyroCalc(imu_counter);
@@ -128,8 +151,5 @@ void loop() {
 
 // //  
   }
-//     // encoded.publish(&arr);
-//     // encoder.spinOnce();
-//     // next_skip += skip;
-//   // }
+
 };
