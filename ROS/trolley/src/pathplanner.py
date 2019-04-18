@@ -5,6 +5,7 @@ import numpy
 import matplotlib.pyplot as plt
 
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from std_msgs.msg import Int32
 from trolley.msg import Wheels
 
 class Coordinate(object):
@@ -106,9 +107,43 @@ class Path_Planner(object):
 		new_v = (self.command.left+self.command.right)/2 + ac1*self.timeStep
 		return [new_v, new_w] 
 		
+		
+class Gripper(object):
+	def __init__(self):
+		super(Gripper, self).__init__()
+		self.rate = rospy.Rate(10)
+		
+	def gripper_up(self):
+		pub = rospy.Publisher("servo", Int32, queue_size = 30)
+		msg = Int32
+		msg.data = 0
+		while True:
+	    		connections = pub.get_num_connections()
+	    		if connections > 0:
+				pub.publish(msg)
+				rospy.loginfo("Raising grippers")
+				rospy.sleep(1)
 
+				break
+	    		else:
+				self.rate.sleep()
+		
+	def gripper_down(self):
+		pub = rospy.Publisher("servo", Int32, queue_size = 30)
+		msg = Int32
+		msg.data = 1
+		while True:
+	    		connections = pub.get_num_connections()
+	    		if connections > 0:
+				pub.publish(msg)
+				rospy.loginfo("Raising grippers")
+				rospy.sleep(1)
 
-class Robot(Path_Planner):
+				break
+	    		else:
+				self.rate.sleep()
+
+class Robot(Path_Planner, Gripper):
 	def __init__(self):
 		super(Robot,self).__init__()
 		self.rate=rospy.Rate(10)
@@ -146,7 +181,7 @@ class Robot(Path_Planner):
 		self.current_pose.x = msg.pose.pose.position.x
 		self.current_pose.y = msg.pose.pose.position.y
 		
-		(roll, ptich,yaw) = euler_from_quaternion(msg.pose.pose.orientation)
+		(roll, ptich,yaw) = euler_from_quaternion(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
 		self.current_pose.theta = yaw
 
 
@@ -154,6 +189,7 @@ class Robot(Path_Planner):
 	def is_docked(self):
 		if abs(self.current_pose.x - self.trolley.x) < 0.3 and abs(self.current_pose.y - self.trolley.y) < 0.3 and abs(self.current_pose.theta - self.trolley.theta) < 0.1:
 			rospy.loginfo("Docked")
+			self.gripper_up()
 			return True
 
 		else:
@@ -161,4 +197,4 @@ class Robot(Path_Planner):
 
 
 
-	
+
