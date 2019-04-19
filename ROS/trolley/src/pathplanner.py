@@ -8,6 +8,21 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from std_msgs.msg import Int32
 from trolley.msg import Wheels
 
+
+class Aruco(object):
+	def __init__(self):
+		super(Aruco, self).__init__()
+		self.trolley = Coordinate()
+
+	def get_trolley_coords(self):
+		rospy.loginfo("Getting trolley coordinates")
+		f = open("/home/odroid/Desktop/Aruco_Tracker/rangeandpose.txt", "r")
+		lines = f.readlines()
+		f.close()
+
+		self.trolley.x = 0
+
+
 class Coordinate(object):
 	def __init__(self, a = 0, b = 0, t = 0):
 		self.x = a
