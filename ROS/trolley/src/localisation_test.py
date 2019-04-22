@@ -1,24 +1,42 @@
+#! /usr/bin/env python
 import rospy
 import pathplanner
 
+
+def gripper_test(bot):
+	rospy.loginfo("Gripper Test")
+	rospy.loginfo("Lower gripper")
+	bot.gripper_down()
+	rospy.sleep(5)
+	rospy.loginfo("Raise gripper")
+	bot.gripper_up()
+	rospy.loginfo("Gripper test complete")
+
+def localisation_test(bot, vl, vr):	
+	vell, velr = vl, vr
+	counter = 1	
+	test_x = 1
+	test_time = 10
+	while counter < test_time:
+		bot.vel_publish(vell,velr)
+		bot.ekf_sub()
+		counter +=1
+	bot.vel_publish(0,0)
+
+		
+	
 if __name__ == "__main__":
 	rospy.init_node("botherder")
 	bot = pathplanner.Robot()
-	bot.trolley = pathplanner.Coordinate(0,1)
-	try:	
-		while bot.is_docked != True:
-			bot.vel_publish()
-			bot.ekf_sub()
+	bot.ekf_sub()
 
-			if bot.current_pose.y >  1:
-				rospy.loginfo("overshoot")				
-				break
+	try:
+		localisation_test(bot, 0.12, 0.12)
+		rospy.loginfo("x: %f, y: %f, w: %f" % (bot.current_pose.x, bot.current_pose.y, bot.current_pose.theta))
 
-		bot.vel_publish(0,0)
 
 	except rospy.ROSInterruptException:
-		bot.vel_publish(0,0)
-		rospy.loginfo("crashed")
+		pass
 
 	
 		

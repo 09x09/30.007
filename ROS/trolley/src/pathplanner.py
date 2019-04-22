@@ -5,7 +5,9 @@ import numpy
 import matplotlib.pyplot as plt
 
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from std_msgs.msg import Int32
+from nav_msgs.msg import Odometry
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from std_msgs.msg import Float64
 from trolley.msg import Wheels
 
 
@@ -33,14 +35,14 @@ class Path_Planner(object):
 	def __init__(self):
 		super(Path_Planner, self).__init__()
 		self.bpath = []
-		self.timeStep = 0.01
+		self.timeStep = 0.2
 		self.origin = Coordinate()
 		self.controlPt2 = Coordinate()
-		self.trolley = Coordinate(5,5,1.5)
+		self.trolley = Coordinate(1,3)
 		self.controlPt1 = Coordinate(0, self.trolley.y,0)
 		self.bezier_curve()
 		self.base_length = 0.7
-		self.a_max = 0.2
+		self.a_max = 0.1
 		self.landing_coeff = 0.5
 		self.command = Wheels()
 		self.total_time = 30
@@ -77,16 +79,16 @@ class Path_Planner(object):
 			t += self.timeStep
 			current_angle = angle_value
 
-		xv = [i[0] for i in self.bpath]
-		yv = [j[1] for j in self.bpath]
+		#xv = [i[0] for i in self.bpath]
+		#yv = [j[1] for j in self.bpath]
 		
-		plt.scatter(self.controlPt1.x, self.controlPt1.y)
-		plt.scatter(self.controlPt2.x, self.controlPt2.y)
-		plt.scatter(xv,yv)
-		plt.show()
+		#plt.scatter(self.controlPt1.x, self.controlPt1.y)
+		#plt.scatter(self.controlPt2.x, self.controlPt2.y)
+		#plt.scatter(xv,yv)
+		#plt.show()
 
 		rospy.loginfo("Curve generated")
-		rospy.loginfo(self.bpath)
+		#rospy.loginfo(self.bpath)
 
 	def compute_error(self, current_time, current_pose):
 		target_pose = self.bpath[int(current_time/self.total_time*len(self.bpath))]
@@ -97,6 +99,7 @@ class Path_Planner(object):
 		err_theta = target_pose[2] - current_pose.theta
 		
 		err = [err_x,err_y,err_theta]
+		err = [i/2 for i in err]
 		return err
 
 	def convert_to_wheel_vel(self, vc, wc):
@@ -129,34 +132,35 @@ class Gripper(object):
 		self.rate = rospy.Rate(10)
 		
 	def gripper_up(self):
-		pub = rospy.Publisher("servo", Int32, queue_size = 30)
-		msg = Int32
-		msg.data = 0
+		pub = rospy.Publisher("servo", Float64, queue_size = 30)
+		msg = Float64()
+		msg.data = float(1)
+		pub.publish(msg)
+		start_time = time.time()
 		while True:
-	    		connections = pub.get_num_connections()
-	    		if connections > 0:
-				pub.publish(msg)
-				rospy.loginfo("Raising grippers")
-				rospy.sleep(1)
-
-				break
-	    		else:
-				self.rate.sleep()
+	   		now = time.time()
+			pub.publish(msg)
+			rospy.loginfo("Raise grippers")
+			rospy.sleep(0.5)
+			now = time.time()
+			if now - start_time > 5:
+				return 0
 		
 	def gripper_down(self):
-		pub = rospy.Publisher("servo", Int32, queue_size = 30)
-		msg = Int32
-		msg.data = 1
+		pub = rospy.Publisher("servo", Float64, queue_size = 30)
+		msg = Float64()
+		msg.data = float(0) 
+		start_time = time.time()
 		while True:
-	    		connections = pub.get_num_connections()
-	    		if connections > 0:
-				pub.publish(msg)
-				rospy.loginfo("Raising grippers")
-				rospy.sleep(1)
+	   		now = time.time()
+			pub.publish(msg)
+			rospy.loginfo("Lower grippers")
+			rospy.sleep(0.5)
+			now = time.time()
+			if now - start_time > 5:
+				return 0			
 
-				break
-	    		else:
-				self.rate.sleep()
+
 
 class Robot(Path_Planner, Gripper):
 	def __init__(self):
@@ -166,41 +170,55 @@ class Robot(Path_Planner, Gripper):
 		self.start_time = time.time()
 		rospy.loginfo("Time set")
 		self.elapsed_time = 0
+		self.start_pose = Coordinate()
 
-	def vel_publish(self, left_vel = 0.2, right_vel = 0.2): #publish movements
+	def vel_publish(self, left_vel = 0.15, right_vel = 0.15): #publish movements
 		pub = rospy.Publisher("/cmd_vel", Wheels, queue_size = 30)
 		msg = Wheels()
 		msg.left = left_vel
 		msg.right = right_vel
 		self.current_command = msg
+		start_time = time.time()
 		while True:
-	    		connections = pub.get_num_connections()
-	    		if connections > 0:
-				pub.publish(msg)
-				rospy.loginfo("Publishing movement")
-				rospy.sleep(1)
-
-				break
-	    		else:
-				self.rate.sleep()
+	   		now = time.time()
+			pub.publish(msg)
+			rospy.loginfo("vel_published")
+			rospy.sleep(0.5)
+			now = time.time()
+			if now - start_time > 1:
+				return 0
 
 	def ekf_sub(self):
-		rospy.Subscriber("robot_pose_ekf/odom_combined", PoseWithCovarianceStamped, self.get_current_pose)
+		rospy.Subscriber("/odometry/filtered", Odometry, self.get_current_pose)
 		self.elapsed_time = time.time() - self.start_time
-		rospy.loginfo(self.elapsed_time)
-		rospy.sleep(0.05)
+		rospy.sleep(0.2)
 
 	def get_current_pose(self, msg):
-		rospy.loginfo("EKF msg received")
-		rospy.loginfo(self.elapsed_time)
-		self.current_pose.x = msg.pose.pose.position.x
-		self.current_pose.y = msg.pose.pose.position.y
+		if self.start_pose.x == 0 or self.start_pose.y == 0 or self.start_pose.theta == 0:
+			rospy.loginfo("setting initial pose")
+			self.start_pose.x = msg.pose.pose.position.x
+			self.start_pose.y = msg.pose.pose.position.y
+			(roll, ptich,yaw) = euler_from_quaternion([msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
+			self.start_pose.theta = yaw
+			rospy.loginfo("initial x: %f, initial y: %f, initial theta: %f" % (self.start_pose.x, self.start_pose.y, self.start_pose.theta))
 		
-		(roll, ptich,yaw) = euler_from_quaternion(msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w)
-		self.current_pose.theta = yaw
+		self.current_pose.x = msg.pose.pose.position.x - self.start_pose.x
+		self.current_pose.y = msg.pose.pose.position.y - self.start_pose.y
+		
+		(roll, ptich,yaw) = euler_from_quaternion([msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w])
+		self.current_pose.theta = yaw - self.start_pose.theta
+		#rospy.loginfo("msg x: %f, msg y: %f, msg theta: %f" % (msg.pose.pose.position.x, msg.pose.pose.position.y, yaw))
+		#rospy.loginfo("current x: %f, current y: %f, current theta: %f" % (self.current_pose.x, self.current_pose.y, self.current_pose.theta))
 
 
-	
+	def stop(self):
+		self.vel_publish(0.13)
+		self.vel_publish(0.12)
+		self.vel_publish(0.12)
+		self.vel_publish(0.11)
+		self.vel_publish(0.11)
+		self.vel_publish(0,0)	
+
 	def is_docked(self):
 		if abs(self.current_pose.x - self.trolley.x) < 0.3 and abs(self.current_pose.y - self.trolley.y) < 0.3 and abs(self.current_pose.theta - self.trolley.theta) < 0.1:
 			rospy.loginfo("Docked")
