@@ -57,30 +57,39 @@ ros::NodeHandle trobot;
 //callback for motors
  void messageCb(const trolley::Wheels &msg)
  {
-
-   if (msg.left < 0 & msg.left == msg.right) //reverse
+   int val_right = msg.right * (92 / 0.205) * 0.8933 + 9;
+   int val_left = msg.left * (92 / 0.205) * 0.8933 + 9;
+   
+   if (msg.left < 0 && msg.right < 0) //reverse
    {
-     int val = -1 * msg.left * (92 / 0.205) * 0.8933 + 9;
-     MotRight.move(0, val);
-     MotLeft.move(0, val);
+     val_right = -1 * val_right;
+     val_left = -1 * val_left;
+     MotRight.move(0, val_right);
+     MotLeft.move(0, val_left);
    }
 
-   else if (msg.left > 0 & msg.left == msg.right) //forward
+   if (msg.left > 0 && msg.right > 0) //forward
    {
-     int val = msg.left * (92 / 0.205) * 0.8933 + 9;
-     MotRight.move(val, 0);
-     MotLeft.move(val, 0);
+     MotRight.move(val_right, 0);
+     MotLeft.move(val_left, 0);
    }
-   else if (msg.left == 0 & msg.right == 0){
+   
+   if (msg.left == 0 && msg.right == 0){
     MotRight.stop();
     MotLeft.stop();
    }
-   else
+   
+   if (msg.left > 0 && msg.right < 0)
    {
-     int val1 = msg.right * (92 / 0.205) * 0.8933 + 9;
-     int val2 = msg.left * (92 / 0.205) * 0.8933 + 9;
-     MotRight.move(val1, 0);
-     MotLeft.move(val2, 0);
+     val_right = -1 * val_right;
+     MotRight.move(0, val_right);
+     MotLeft.move(val_left, 0);
+   }
+   
+   if (msg.left < 0 && msg.right > 0){
+     val_left = -1 * val_left;
+     MotRight.move(val_right, 0);
+     MotLeft.move(0, val_left);
    }
  }
 //ROS STUFF
@@ -175,8 +184,8 @@ void setup()
   right_side.init(true);
   right_side.setAddress((uint8_t)25);
 
-  left_side.setTimeout(500);
-  right_side.setTimeout(500);
+  left_side.setTimeout(50000);
+  right_side.setTimeout(50000);
   left_side.startContinuous();
   right_side.startContinuous();
 
@@ -214,38 +223,35 @@ void loop()
 
   if (wheel_right.sample_encoder())
   {
-
-    linear_vel[1] = -1 * smooth_right.add_sample(wheel_right.lin_vel());
-//    Serial.print("Wheel Right: ");
-//    Serial.println(linear_vel[1]);
-//   
+    float rightenc = -1 * smooth_right.add_sample(wheel_right.lin_vel());
+    if (rightenc < 3 && rightenc > -3){
+      linear_vel[1] = rightenc;
+    }
     print_right = true;
   }
+  
   if (wheel_right.stopped() && print_right)
   {
     linear_vel[1] = 0;
-//    Serial.println("Wheel right: 0");
-//    Serial.println("Stopped");
     print_right = false;
   }
+  
   if (wheel_left.sample_encoder())
   {
-
-    linear_vel[0] = 1* smooth_left.add_sample(wheel_left.lin_vel());
-//    Serial.print("Wheel Left: ");
-//    Serial.println(linear_vel[0]);
- 
+    float leftenc = smooth_left.add_sample(wheel_left.lin_vel());
+    if(leftenc < 3 && leftenc > -3){
+    linear_vel[0] = leftenc; 
+    }
     print_once_stop_flag = true;
   }
+  
   if (wheel_left.stopped() && print_once_stop_flag)
   {
     linear_vel[0] = 0;
-//     Serial.println("Wheel left : 0");
-//         Serial.println("Stopped");
-          print_once_stop_flag = false;
+    print_once_stop_flag = false;
   }
   
-  enc.data_length = 2;
+   enc.data_length = 2;
    enc.data = linear_vel;
    encoder.publish( &enc);
    trobot.spinOnce();
@@ -267,27 +273,27 @@ void loop()
      imu_counter++;
 
   // //   //READ RANGEFINDER
-//     distance[0] = right_side.readRangeContinuousMillimeters();
-//     distance[1] = left_side.readRangeContinuousMillimeters();
-//
-//       Serial.println("left: ");
-//       Serial.println(distance[1]);
-//       if (left_side.timeoutOccurred())
-//       {
-//         Serial.print(" TIMEOUT");
-//       }
-//       Serial.println("right: ");
-//       Serial.println(distance[0]);
-//       if (right_side.timeoutOccurred())
-//       {
-//         Serial.print("TIMEOUT");
-//       }
-//
-//      // Publish rangefinder readings
-//       range.data_length = 2;
-//       range.data = distance;
-//       rangefinder.publish( &range);
-//       trobot.spinOnce();
+     distance[0] = right_side.readRangeContinuousMillimeters();
+     distance[1] = left_side.readRangeContinuousMillimeters();
+
+       Serial.println("left: ");
+       Serial.println(distance[1]);
+       if (left_side.timeoutOccurred())
+       {
+         Serial.print(" TIMEOUT");
+       }
+       Serial.println("right: ");
+       Serial.println(distance[0]);
+       if (right_side.timeoutOccurred())
+       {
+         Serial.print("TIMEOUT");
+       }
+
+      // Publish rangefinder readings
+       range.data_length = 2;
+       range.data = distance;
+       rangefinder.publish( &range);
+       trobot.spinOnce();
    }
 
    if (imu_counter >= 10)

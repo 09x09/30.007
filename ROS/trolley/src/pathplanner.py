@@ -120,21 +120,37 @@ class Robot(Path_Planner, Gripper):
 		rospy.loginfo("Time set")
 		self.elapsed_time = 0
 		self.start_pose = Coordinate()
+		self.obstacle_flag = 0
+
+	def check_obstacle(self):
+		rospy.Subscriber("obstacle", Float64, self.obstacle_cb)
+
+	def obstacle_cb(self, msg):
+		self.obstacle_flag = msg.data
 
 	def vel_publish(self, left_vel = 0.12, right_vel = 0.12, t = 1): #publish movements
 		pub = rospy.Publisher("/cmd_vel", Wheels, queue_size = 30)
 		msg = Wheels()
-		msg.left = left_vel
-		msg.right = right_vel
-		self.current_command = msg
-		start_time = time.time()
-		while True:
-	   		now = time.time()
+		if int(self.obstacle_flag) == 1:
+			rospy.loginfo("obstacle_detected, stopping")
+			msg.left = 0
+			msg.right = 0
 			pub.publish(msg)
-			rospy.sleep(0.5)
-			now = time.time()
-			if now - start_time > t:
-				return 0
+
+		else:
+			msg.left = left_vel
+			msg.right = right_vel
+
+			rospy.loginfo("Obstacle gone, continuing")
+			self.current_command = msg
+			start_time = time.time()
+			while True:
+		   		now = time.time()
+				pub.publish(msg)
+				rospy.sleep(0.5)
+				now = time.time()
+				if now - start_time > t:
+					return 0
 
 	def ekf_sub(self):
 		rospy.Subscriber("/odometry/filtered", Odometry, self.get_current_pose)
@@ -168,11 +184,12 @@ class Robot(Path_Planner, Gripper):
 		4. compute wheel velocities given arc radius
 		5. publish velocities
 		6. repeat
-		"""
+		"""		
 		self.compute_control_point()
 		r = self.compute_radius()
 		vl, vr = self.compute_wheel_vel(r)
-		self.vel_publish(vl, vr, 2)
+		self.vel_publish(vl, vr, 1)
+
 
 	def align(self):
 		"""
@@ -180,7 +197,7 @@ class Robot(Path_Planner, Gripper):
 		bang bang control
 		"""
 		rospy.loginfo("alignment")
-		while abs(self.trolley.theta) > 0.05 and self.trolley.y > 0.15:	
+		while abs(self.trolley.theta) > 0.05 and self.trolley.y > 0.5:	
 			self.get_dock_pose()
 			x_err = 0.2 * self.trolley.x
 			rospy.loginfo(self.trolley.theta)			
@@ -224,6 +241,8 @@ class Robot(Path_Planner, Gripper):
 					vr = 0.15
 
 			self.vel_publish(vl,vr,2)
+			if self.trolley.y < 0.2:
+				self.vel_publish(vl,vr,2)
 
 
 	def stop(self):
@@ -245,21 +264,23 @@ class Robot(Path_Planner, Gripper):
 
 
 	def get_dock_pose(self):
-		old = self.trolley.y
 		rospy.Subscriber("aruco_single/pose", PoseStamped, self.aruco_callback)
 		
-		while self.trolley.y == old:
-			rospy.loginfo("Unable to find marker, stopping")
-			self.vel_publish(0,0)
-						
+
+					
 		
 	def aruco_callback(self, msg):
 		dist = msg.pose.position
 		quaternion = msg.pose.orientation
 		r,p,y = euler_from_quaternion((quaternion.x, quaternion.y, quaternion.z, quaternion.w))
 
-		self.trolley.x = dist.x
-		self.trolley.y = dist.z - 0.65
+		if dist.x < 0:
+			self.trolley.x = dist.x - 0.1
+
+		else:
+			self.trolley.x = dist.x + 0.1
+
+		self.trolley.y = dist.z - 0.3
 		self.trolley.theta = p
 
 
