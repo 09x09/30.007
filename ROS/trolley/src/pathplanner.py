@@ -290,4 +290,66 @@ class Robot(Path_Planner, Gripper):
 		#rospy.loginfo("trolley x: %f, trolley y: %f, trolley angle: %f" % (dist.x, dist.z, y))
 		
 		
+	def aruco_callback2(self, msg):
+		dist = msg.pose.position
+		quaternion = msg.pose.orientation
+		r,p,y = euler_from_quaternion((quaternion.x, quaternion.y, quaternion.z, quaternion.w))
 
+		if dist.x < 0:
+			self.trolley.x = dist.x - 0.1
+
+		else:
+			self.trolley.x = dist.x + 0.1
+
+		self.trolley.y = dist.z - 0.3
+		self.trolley.theta = p
+		
+		if self.trolley.y > 1.2:
+			self.go()
+			
+		elif self.trolley.y > 0.1:
+			rospy.loginfo("Beginning alignment")
+			if self.trolley.theta > 0.3:
+				vl = 0.15 
+				vr = 0.3
+
+			elif self.trolley.theta > 0.15:
+				vl = 0.15
+				vr = 0.24
+
+			elif self.trolley.theta > 0.05:
+				vl = 0.15
+				vr = 0.18
+
+			elif self.trolley.theta < -0.3:
+				vr = 0.15
+				vl = 0.3
+
+			elif self.trolley.theta < -0.15:
+				vr = 0.15
+				vl = 0.24
+
+			elif self.trolley.theta < -0.05:
+				vr = 0.15
+				vl = 0.18
+
+			else:
+				rospy.loginfo("angle aligned")
+				if x_err > 0.05:
+					vl = 0.16
+					vr = 0.12
+
+				elif x_err < -0.05:
+					vl = 0.12
+					vr = 0.16
+
+				else:
+					rospy.loginfo("aligned")
+					vl = 0.15
+					vr = 0.15
+
+			self.vel_publish(vl,vr)
+			
+		else:
+			rospy.loginfo("docked")
+		
