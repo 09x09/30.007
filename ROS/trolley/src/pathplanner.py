@@ -128,7 +128,7 @@ class Robot(Path_Planner, Gripper):
 	def obstacle_cb(self, msg):
 		self.obstacle_flag = msg.data
 
-	def vel_publish(self, left_vel = 0.12, right_vel = 0.12, t = 1): #publish movements
+	def vel_publish(self, left_vel = 0.12, right_vel = 0.12, t = 0): #publish movements
 		pub = rospy.Publisher("/cmd_vel", Wheels, queue_size = 30)
 		msg = Wheels()
 		if int(self.obstacle_flag) == 1:
@@ -144,13 +144,15 @@ class Robot(Path_Planner, Gripper):
 			rospy.loginfo("Obstacle gone, continuing")
 			self.current_command = msg
 			start_time = time.time()
-			while True:
-		   		now = time.time()
-				pub.publish(msg)
-				rospy.sleep(0.5)
-				now = time.time()
-				if now - start_time > t:
-					return 0
+			pub.publish(msg)
+			if t != 0:
+				while True:
+		   			now = time.time()
+					pub.publish(msg)
+					rospy.sleep(0.5)
+					now = time.time()
+					if now - start_time > t:
+						return 0
 
 	def ekf_sub(self):
 		rospy.Subscriber("/odometry/filtered", Odometry, self.get_current_pose)
@@ -197,7 +199,7 @@ class Robot(Path_Planner, Gripper):
 		bang bang control
 		"""
 		rospy.loginfo("alignment")
-		while abs(self.trolley.theta) > 0.05 and self.trolley.y > 0.5:	
+		while abs(self.trolley.theta) > 0.05 or self.trolley.y > 0.1:	
 			self.get_dock_pose()
 			x_err = 0.2 * self.trolley.x
 			rospy.loginfo(self.trolley.theta)			
@@ -240,9 +242,9 @@ class Robot(Path_Planner, Gripper):
 					vl = 0.15
 					vr = 0.15
 
+			self.vel_publish(vl,vr)
+		if self.trolley.y < 0.1:
 			self.vel_publish(vl,vr,2)
-			if self.trolley.y < 0.2:
-				self.vel_publish(vl,vr,2)
 
 
 	def stop(self):
@@ -251,7 +253,7 @@ class Robot(Path_Planner, Gripper):
 		self.vel_publish(0.12)
 		self.vel_publish(0.11)
 		self.vel_publish(0.11)
-		self.vel_publish(0,0)	
+		self.vel_publish(0,0,2)	
 
 	def is_docked(self):
 		if abs(self.current_pose.x - self.trolley.x) < 0.3 and abs(self.current_pose.y - self.trolley.y) < 0.3 and abs(self.current_pose.theta - self.trolley.theta) < 0.1:
@@ -286,4 +288,6 @@ class Robot(Path_Planner, Gripper):
 
 		#rospy.loginfo("roll: %f, pitch: %f yaw: %f" % (r,p,y))
 		#rospy.loginfo("trolley x: %f, trolley y: %f, trolley angle: %f" % (dist.x, dist.z, y))
+		
+		
 
